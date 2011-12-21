@@ -22,7 +22,6 @@ def magicSplit( data, char = None ):
 def do( cmd, native = False ):
   if native:
     return os.system( cmd )
-  print cmd
   sp = subprocess.Popen( cmd, shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
   data = ""
   stepRead = 8192
@@ -32,12 +31,12 @@ def do( cmd, native = False ):
       data += buf
     if len( buf ) < stepRead:
       break
-  sp.stderr.close()
-  sp.stdout.close()
   wait = sp.wait()
   if wait != 0:
     print "ERROR while executing [%s]:\n%s" % ( cmd, sp.stderr.read() )
     sys.exit( wait )
+  sp.stderr.close()
+  sp.stdout.close()
   return data.rstrip()
 
 if parseRes.list:
