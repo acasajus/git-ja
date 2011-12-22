@@ -6,7 +6,7 @@ import subprocess
 import os
 import re
 
-parser = argparse.ArgumentParser( description = "Git remote manager" )
+parser = argparse.ArgumentParser( description = "Git-ja utilities for gitjas!" )
 parser.add_argument( '-d', '--debug', action = 'store_true', help = "Enable debug output" )
 parser.add_argument( '-l', '--list', action = 'store_true', help = "List all remotes" )
 parser.add_argument( '-u', '--update', action = 'store_true', help = "Update all remotes" )
