@@ -12,8 +12,8 @@ parser.add_argument( '-r', '--remotes', action = 'store_true', help = "List all 
 parser.add_argument( '-u', '--update', action = 'store_true', help = "Update info about all remotes" )
 parser.add_argument( '-t', '--status', action = 'store_true', help = "Show status of all branches with remotes" )
 parser.add_argument( '-i', '--divergence', action = 'store_true', help = "Show divergence tree of given refs" )
-parser.add_argument( '-a', '--aheadlog', action = 'store_true', help = "Retrieve a list of refs ahead of tracked remote branch" )
-parser.add_argument( '-P', '--prune', action = 'store_true', help = "Prune origin branches that no longer exist in the local repository" )
+parser.add_argument( '-f', '--syncLog', action = 'store_true', help = "Get the commits that differ between local and tracked branches" )
+parser.add_argument( '-P', '--prune', action = 'store_true', help = "Prune remote branches. If no remote branches are given, origin branches that doesn't exist locally will be used" )
 parser.add_argument( '-s', '--shy', action = 'store_true', help = "Do not execute any remote query" )
 parser.add_argument( 'refs', metavar='ref', nargs='*' )
 doneStuff = False
@@ -115,7 +115,7 @@ def execDivergence():
     cmd = "git log --graph --color --boundary --pretty=format:%s %s..%s" % ( "%x1b[31m%h%x09%x1b[32m%d%x1b[0m%x20%s", mergeBase, " ".join( refs ) )
     print do( cmd )
 
-def execAheadLog():
+def execSyncLog():
   remlog = re.compile( "^ *\*? +([\-\w]+) +\w+ +\[(ahead|behind) +([0-9]+)\].*$" )
   refs = getRefs( defaultCurrent = True )
   found = {}
@@ -177,7 +177,10 @@ def execPrune():
     else:
       for ref in refsToDelete:
 	print "Pruning %s" % ref
-	do( "git push %s :%s" % tuple( ref.split( "/" ) ) )
+	if parseRes.shy:
+	  print "Skipping prune due to shy command"
+	else:
+	  do( "git push %s :%s" % tuple( ref.split( "/" ) ) )
 
   
 #Glue code
@@ -191,9 +194,9 @@ if parseRes.update:
 if parseRes.divergence:
   doneStuff = True
   execDivergence()
-if parseRes.aheadlog:
+if parseRes.syncLog:
   doneStuff = True
-  execAheadLog() 
+  execSyncLog() 
 if parseRes.prune:
   doneStuff = True
   execPrune()
