@@ -8,8 +8,8 @@ import re
 
 parser = argparse.ArgumentParser( description = "Git-ja utilities for gitjas!" )
 parser.add_argument( '-d', '--debug', action = 'store_true', help = "Enable debug output" )
-parser.add_argument( '-l', '--list', action = 'store_true', help = "List all remotes" )
-parser.add_argument( '-u', '--update', action = 'store_true', help = "Update all remotes" )
+parser.add_argument( '-r', '--remotes', action = 'store_true', help = "List all remotes" )
+parser.add_argument( '-u', '--update', action = 'store_true', help = "Update info about all remotes" )
 parser.add_argument( '-t', '--status', action = 'store_true', help = "Show status of all branches with remotes" )
 parser.add_argument( '-i', '--divergence', action = 'store_true', help = "Show divergence tree of given refs" )
 parser.add_argument( '-a', '--aheadlog', action = 'store_true', help = "Retrieve a list of refs ahead of tracked remote branch" )
@@ -85,7 +85,7 @@ def do( cmd, checkValid = False ):
 
 #Actual stuff
   
-def execList():
+def execRemotes():
   remotes = magicSplit( do( "git remote show" ) )
   print "%s remotes: %s" % ( len( remotes ), ", ".join( remotes ) )
   for remote in remotes:
@@ -182,9 +182,9 @@ def execPrune():
   
 #Glue code
   
-if parseRes.list:
+if parseRes.remotes:
   doneStuff = True
-  execList()
+  execRemotes()
 if parseRes.update:
   doneStuff = True
   execUpdate()
