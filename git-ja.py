@@ -124,7 +124,7 @@ def execSyncLog():
     if match:
       groups = match.groups()
       if groups[0] in refs:
-	found[ groups[0] ] = ( groups[1], int( groups[2] ) )
+        found[ groups[0] ] = ( groups[1], int( groups[2] ) )
   for ref in refs:
     if ref not in found:
       continue
@@ -152,23 +152,23 @@ def execPrune():
   if refsToDelete:
     for ref in refsToDelete:
       if ref not in remoteBranches:
-	print "%s is not a remote branch" % ref
-	sys.exit(1)
+        print "%s is not a remote branch" % ref
+        sys.exit(1)
   else:
     auto = True
     for branch in remoteBranches:
       if branch.find( "origin/" ) == 0:
-	refsToDelete.append( branch )
+        refsToDelete.append( branch )
   if auto:
     iP = 0
     while iP < len( refsToDelete ):
       branch = refsToDelete[iP].split( "/" )[1]
       if exists( branch ):
-	refsToDelete.pop( iP )
+        refsToDelete.pop( iP )
       elif raw_input( "%s does not exist locally. Prune? [Y/n]> " % branch ).lower() not in ( 'y', 'yes' ):
-	refsToDelete.pop( iP )
+        refsToDelete.pop( iP )
       else:
-	iP += 1
+        iP += 1
   if not refsToDelete:
     print "No remote branches found to be pruned"
   else:
@@ -176,11 +176,11 @@ def execPrune():
       print "Prune aborted"
     else:
       for ref in refsToDelete:
-	print "Pruning %s" % ref
-	if parseRes.shy:
-	  print "Skipping prune due to shy command"
-	else:
-	  do( "git push %s :%s" % tuple( ref.split( "/" ) ) )
+        print "Pruning %s" % ref
+        if parseRes.shy:
+          print "Skipping prune due to shy command"
+        else:
+          do( "git push %s :%s" % tuple( ref.split( "/" ) ) )
 
   
 #Glue code
