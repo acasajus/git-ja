@@ -57,18 +57,32 @@ def parentOf( parent, child ):
 def exists( ref ):
   return do( "git rev-parse %s" % ref, checkValid = True )
 
+def getAllLocalBranches():
+  return [ com.lstrip( '*' ).strip() for com in do( "git branch" ).split( "\n" ) if com.strip() ]
+  
+def getCurrentBranch():
+  for line in magicSplit( do( "git branch" ), "\n" ):
+    if line[0] == '*':
+      return line[1:].strip()
+  return None
   
 def getRefs( defaultAll = False, defaultCurrent = False ):
-  for ref in parseRes.refs:
-    if not exists( ref ):
-      print "Ref %s doesn't seem to be valid" % colorize( ref, 'red' )
-      sys.exit(1)
   if parseRes.refs:
     refs = parseRes.refs
+    iP = refs.index( 'ALL' )
+    if iP > -1:
+      refs.pop(iP)
+      for localBranch in getAllLocalBranches():
+        if localBranch not in refs:
+          refs.append( localBranch )
+    for ref in parseRes.refs:
+      if not exists( ref ):
+        print "Ref %s doesn't seem to be valid" % colorize( ref, 'red' )
+        sys.exit(1)
   elif defaultAll:
-    refs = [ com.lstrip( '*' ).strip() for com in do( "git br" ).split( "\n" ) if com.strip() ]
+    refs = getAllLocalBranches()
   elif defaultCurrent:
-    refs = [ com.lstrip( '*' ).strip() for com in do( "git br" ).split( "\n" ) if com.strip().find( "*" ) == 0 ]
+    refs = [ getCurrentBranch() ]
   else:
     refs = []
   return refs
