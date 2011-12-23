@@ -10,8 +10,8 @@ parser = argparse.ArgumentParser( description = "Git-ja utilities for gitjas!" )
 parser.add_argument( '-d', '--debug', action = 'store_true', help = "Enable debug output" )
 parser.add_argument( '-r', '--remotes', action = 'store_true', help = "List all remotes" )
 parser.add_argument( '-u', '--update', action = 'store_true', help = "Update info about all remotes" )
-parser.add_argument( '-t', '--status', action = 'store_true', help = "Show status of all branches with remotes" )
-parser.add_argument( '-i', '--divergence', action = 'store_true', help = "Show divergence tree of given refs" )
+parser.add_argument( '-t', '--status', action = 'store_true', help = "Show divergence between given refs and their remote tracked and homonym branches" )
+parser.add_argument( '-i', '--divergence', action = 'store_true', help = "Show divergence tree between given refs" )
 parser.add_argument( '-f', '--syncLog', action = 'store_true', help = "Get the commits that differ between local and tracked branches" )
 parser.add_argument( '-P', '--prune', action = 'store_true', help = "Prune remote branches. If no remote branches are given, origin branches that doesn't exist locally will be used" )
 parser.add_argument( '-s', '--shy', action = 'store_true', help = "Do not execute any remote query" )
@@ -19,27 +19,49 @@ parser.add_argument( 'refs', metavar='ref', nargs='*' )
 doneStuff = False
 parseRes = parser.parse_args()
 
+colorMap = ( 'black', 'red', 'green', 'orange', 'blue', 'violet', 'lightblue', 'gray', 'darkgray', 'inv' )
+def colorize( msg, color ):
+  iC = max( 0, colorMap.index( color.lower() ) )
+  return "\033[;3%dm%s\033[0m" % ( iC, msg )
 
-def debug( msg ):
+def debugMsg( msg ):
   if parseRes.debug:
-    print "[DEBUG] %s" %msg
+    print "[%s] %s" %( colorize( 'DEBUG', 'lightblue' ), msg )
+
+def errorMsg( msg ):
+  if parseRes.debug:
+    print "[%s] %s" %( colorize( 'ERROR', 'red' ), msg )
+    
 
 def magicSplit( data, char = None ):
   return [ f.strip() for f in data.split( char ) if f.strip() ]
  
-def getBranchTacks( head ):
-  remote = do( "git config branch.%s.remote" % head )
-  merge = "/".join( do( "git config branch.%s.merge" % head ).split( "/" )[2:] )
-  return "%s/%s" % ( remote, merge )
+def getTrackedBranch( head ):
+  remote = do( "git for-each-ref --format='%%(upstream:short)' refs/heads/%s" % head )
+  return remote.strip()
+  
+def getSameRefInRemotes( head ):
+  remBranch = []
+  remBrRE = re.compile( "^\*?\s*remotes/([\w-]+)/([\w-]+)\s*$" )
+  for ref in do( "git branch -r" ).split( "\n" ):
+    match = remBrRE.match( ref )
+    if match:
+      groups = match.groups()
+      if groups[1] == head:
+        remBranch.append( "%s/%s" % ( groups[0], groups[1] ) )
+  return remBranch
 
+def parentOf( parent, child ):
+  return parent in magicSplit( do( "git branch --merged %s" % child ), "\n" )
+  
 def exists( ref ):
-  return do( "git log -n 1 --pretty=oneline %s" % ref, checkValid = True )
+  return do( "git rev-parse %s" % ref, checkValid = True )
 
   
-def getRefs( defaultAll = False, defaultCurrent = False, insertTrackedIfOne = False ):
+def getRefs( defaultAll = False, defaultCurrent = False ):
   for ref in parseRes.refs:
     if not exists( ref ):
-      print "Ref %s doesn't seem to be valid" % ref
+      print "Ref %s doesn't seem to be valid" % colorize( ref, red )
       sys.exit(1)
   if parseRes.refs:
     refs = parseRes.refs
@@ -49,16 +71,14 @@ def getRefs( defaultAll = False, defaultCurrent = False, insertTrackedIfOne = Fa
     refs = [ com.lstrip( '*' ).strip() for com in do( "git br" ).split( "\n" ) if com.strip().find( "*" ) == 0 ]
   else:
     refs = []
-  if len( refs ) and insertTrackedIfOne:
-    refs.insert( 0, getBranchTacks( refs[0] ) )
   return refs
       
 
-def getRef( head ):
+def getCommitHash( head ):
   return do( "git log -n 1 --pretty=format:%%H %s" % head )
  
 def do( cmd, checkValid = False ):
-  debug( "Exec %s" % cmd )
+  debugMsg( "Exec %s" % cmd )
   sp = subprocess.Popen( cmd, shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
   data = ""
   stepRead = 8192
@@ -75,7 +95,7 @@ def do( cmd, checkValid = False ):
       err = data
     if checkValid:
       return False
-    print "ERROR while executing [%s]:\n%s" % ( cmd, err )
+    errorMsg( "While executing [%s]:\n%s" % ( cmd, err ) )
     sys.exit( wait )
   if checkValid:
     return True
@@ -99,20 +119,29 @@ def execUpdate():
   print do( "git remote update --prune" )
   
 def execDivergence():
-  refs = getRefs( defaultAll = True, insertTrackedIfOne = True )
+  refs = getRefs( defaultAll = True )
+  if len( refs ) == 1:
+    remoteTracked = getTrackedBranch( refs[0] )
+    if remoteTracked:
+      refs.append( remoteTracked )
+    else:
+      errMsg( "%s is not tracking any remote branch" % refs[0] )
+      return
+  showDivergenceTree( refs )
+      
+def showDivergenceTree( refs ):
   mergeBase = do( "git merge-base --octopus %s" % " ".join( refs ) )
-  if not refs:
-    refs = [ "HEAD" ]
   iP = 0
   while iP < len( refs ):
-    if mergeBase == getRef( refs[iP] ):
+    if mergeBase == getCommitHash( refs[iP] ):
       mergeBase = refs[iP]
       refs.pop( iP )
       break
+    iP += 1
   if not refs:
     print "There is no history betweed defined refs"
   else:
-    cmd = "git log --graph --color --boundary --pretty=format:%s %s..%s" % ( "%x1b[31m%h%x09%x1b[32m%d%x1b[0m%x20%s", mergeBase, " ".join( refs ) )
+    cmd = "git log --graph --color --pretty=format:%s %s^! %s" % ( "%x1b[31m%h%x09%x1b[32m%d%x1b[0m%x20%s", mergeBase, " ".join( refs ) )
     print do( cmd )
 
 def execSyncLog():
@@ -125,19 +154,37 @@ def execSyncLog():
       groups = match.groups()
       if groups[0] in refs:
         found[ groups[0] ] = ( groups[1], int( groups[2] ) )
+  debugMsg( "Using refs %s" % ", ".join( refs ) )
   for ref in refs:
     if ref not in found:
       continue
-    trackedBranch = getBranchTacks( ref )
+    trackedBranch = getTrackedBranch( ref )
+    if not trackedBranch:
+      print "%s is not tracking any remote brach"
+      continue
     if found[ ref ][0] == 'ahead':
       print "\033[;35m*\033[0m %s is \033[;35mAHEAD\033[0m of %s by %d refs:\n" % ( ref, trackedBranch, found[ ref ][1] )
-      sTo = ( getBranchTacks( ref ), ref )
+      sTo = ( getTrackedBranch( ref ), ref )
     else:
       print "\033[;35m*\033[0m %s is \033[;35mBEHIND\033[0m of %s by %d refs:\n" % ( ref, trackedBranch, found[ ref ][1] )
-      sTo = ( ref, getBranchTacks( ref ) )
+      sTo = ( ref, getTrackedBranch( ref ) )
     print "%s\n" % do( "git log --color '--pretty=format:%%Cgreen%%H %%Cblue%%d%%Creset%%n%%B' %s..%s" % sTo )
 
-
+def execStatus():
+  refs = getRefs( defaultCurrent = True )
+  for ref in refs:
+    statusRefs = [ ref ]
+    remoteTracked = getTrackedBranch( ref )
+    if remoteTracked:
+        statusRefs.append( remoteTracked )
+    statusRefs.extend( getSameRefInRemotes( ref ) )
+    if len( statusRefs ) == 1:
+      print "%s has no remote tracked nor homonym branches"
+      continue
+    print "%s Showing divergence for %s with %s" % ( colorize( '->', 'lightblue' ), 
+                                                    statusRefs[0], 
+                                                    ", ".join( statusRefs[1:] ) )
+    showDivergenceTree( statusRefs )
     
 def execPrune():
   if not parseRes.shy:
@@ -200,7 +247,10 @@ if parseRes.syncLog:
 if parseRes.prune:
   doneStuff = True
   execPrune()
-    
+if parseRes.status:
+  doneStuff = True
+  execStatus()
+  
 if not doneStuff:
   parser.print_help()
   sys.exit( 1 )
