@@ -69,7 +69,10 @@ def getCurrentBranch():
 def getRefs( defaultAll = False, defaultCurrent = False ):
   if parseRes.refs:
     refs = parseRes.refs
-    iP = refs.index( 'ALL' )
+    try:
+      iP = refs.index( 'ALL' )
+    except ValueError:
+      iP = -1
     if iP > -1:
       refs.pop(iP)
       for localBranch in getAllLocalBranches():
@@ -177,11 +180,10 @@ def execSyncLog():
       print "%s is not tracking any remote brach"
       continue
     if found[ ref ][0] == 'ahead':
-      print "\033[;35m*\033[0m %s is \033[;35mAHEAD\033[0m of %s by %d refs:\n" % ( ref, trackedBranch, found[ ref ][1] )
       sTo = ( getTrackedBranch( ref ), ref )
     else:
-      print "\033[;35m*\033[0m %s is \033[;35mBEHIND\033[0m of %s by %d refs:\n" % ( ref, trackedBranch, found[ ref ][1] )
       sTo = ( ref, getTrackedBranch( ref ) )
+    print "%s %s is %s of %s by %d refs:\n" % ( colorize( '*', 'violet' ), ref, colorize( found[ ref ][0].upper(), 'violet' ), trackedBranch, found[ ref ][1] )  
     print "%s\n" % do( "git log --color '--pretty=format:%%Cgreen%%H %%Cblue%%d%%Creset%%n%%B' %s..%s" % sTo )
 
 def execStatus():
