@@ -191,13 +191,15 @@ def execStatus():
     remoteTracked = getTrackedBranch( ref )
     if remoteTracked:
         statusRefs.append( remoteTracked )
-    statusRefs.extend( getSameRefInRemotes( ref ) )
+    for ref in getSameRefInRemotes( ref ):
+      if ref not in statusRefs:
+        statusRefs.append( ref )
     if len( statusRefs ) == 1:
-      print "%s has no remote tracked nor homonym branches"
+      print "%s %s has no remote tracked nor homonym branches" % ( colorize( '->', 'red' ), statusRefs[0] )
       continue
-    print "%s Showing divergence for %s with %s" % ( colorize( '->', 'lightblue' ), 
-                                                    statusRefs[0], 
-                                                    ", ".join( statusRefs[1:] ) )
+    print "\n%s Showing divergence for %s with %s\n" % ( colorize( '->', 'lightblue' ), 
+                                                       statusRefs[0], 
+                                                       ", ".join( statusRefs[1:] ) )
     showDivergenceTree( statusRefs )
     
 def execPrune():
