@@ -42,7 +42,7 @@ def getTrackedBranch( head ):
   
 def getSameRefInRemotes( head ):
   remBranch = []
-  remBrRE = re.compile( "^\*?\s*remotes/([\w-]+)/([\w-]+)\s*$" )
+  remBrRE = re.compile( "^\*?\s*([\w-]+)/([\w-]+)\s*$" )
   for ref in do( "git branch -r" ).split( "\n" ):
     match = remBrRE.match( ref )
     if match:
@@ -61,7 +61,7 @@ def exists( ref ):
 def getRefs( defaultAll = False, defaultCurrent = False ):
   for ref in parseRes.refs:
     if not exists( ref ):
-      print "Ref %s doesn't seem to be valid" % colorize( ref, red )
+      print "Ref %s doesn't seem to be valid" % colorize( ref, 'red' )
       sys.exit(1)
   if parseRes.refs:
     refs = parseRes.refs
