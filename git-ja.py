@@ -14,6 +14,7 @@ parser.add_argument( '-t', '--status', action = 'store_true', help = "Show diver
 parser.add_argument( '-i', '--divergence', action = 'store_true', help = "Show divergence tree between given refs" )
 parser.add_argument( '-f', '--syncLog', action = 'store_true', help = "Get the commits that differ between local and tracked branches" )
 parser.add_argument( '-P', '--prune', action = 'store_true', help = "Prune remote branches. If no remote branches are given, origin branches that doesn't exist locally will be used" )
+parser.add_argument( '-w', '--fforward', action = 'store_true', help = "Fast forward branches to their remotes refs if possible" )
 parser.add_argument( '-s', '--shy', action = 'store_true', help = "Do not execute any remote query" )
 parser.add_argument( 'refs', metavar = 'ref', nargs = '*' )
 doneStuff = False
@@ -247,6 +248,36 @@ def execPrune():
         else:
           do( "git push %s :%s" % tuple( ref.split( "/" ) ) )
 
+def execFForward():
+  if do( "git diff-index HEAD" ):
+    print "Your working space is dirty. Commit first all changes!"
+    sys.exit( 1 )
+  if not parseRes.shy:
+    execUpdate()
+  refsToForward = getRefs( defaultAll = True )
+  currentBranch = getCurrentBranch()
+  wBranch = currentBranch
+  for branch in refsToForward:
+    trackedBranch = getTrackedBranch( branch )
+    debugMsg( "Trying %s -> %s" % ( branch, trackedBranch ) )
+    if not trackedBranch:
+      continue
+    if not do( "git rev-list %s..%s" % ( branch, trackedBranch ) ):
+      debugMsg( "%s is not ahead of %s" % ( trackedBranch, branch ) )
+      continue
+    if do( "git rev-list %s..%s" % ( trackedBranch, branch ) ):
+      print "%s and %s have diverged, need a manual merge" % ( branch, trackedBranch ) 
+      continue
+    print "Fast forwarding %s to %s" % ( branch, trackedBranch )
+    do( "git checkout %s" % branch )
+    currentBranch = branch
+    do( "git merge %s" % trackedBranch )
+  if currentBranch != wBranch:
+    print "Reverting to working branch %s" % wBranch
+    do( "git checkout %s" % wBranch )
+      
+    
+
 
 #Glue code
 
@@ -268,6 +299,9 @@ if parseRes.prune:
 if parseRes.status:
   doneStuff = True
   execStatus()
+if parseRes.fforward:
+  doneStuff = True
+  execFForward()
 
 if not doneStuff:
   parser.print_help()
