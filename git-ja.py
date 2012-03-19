@@ -15,6 +15,7 @@ parser.add_argument( '-i', '--divergence', action = 'store_true', help = "Show d
 parser.add_argument( '-f', '--syncLog', action = 'store_true', help = "Get the commits that differ between local and tracked branches" )
 parser.add_argument( '-P', '--prune', action = 'store_true', help = "Prune remote branches. If no remote branches are given, origin branches that doesn't exist locally will be used" )
 parser.add_argument( '-w', '--fforward', action = 'store_true', help = "Fast forward branches to their remotes refs if possible" )
+parser.add_argument( '-p', '--promote', action = 'store_true', help = "Promote branch to origin" )
 parser.add_argument( '-s', '--shy', action = 'store_true', help = "Do not execute any remote query" )
 parser.add_argument( 'refs', metavar = 'ref', nargs = '*' )
 doneStuff = False
@@ -266,7 +267,7 @@ def execFForward():
       debugMsg( "%s is not ahead of %s" % ( trackedBranch, branch ) )
       continue
     if do( "git rev-list %s..%s" % ( trackedBranch, branch ) ):
-      print "%s and %s have diverged, need a manual merge" % ( branch, trackedBranch ) 
+      print "%s and %s have diverged, need a manual merge" % ( branch, trackedBranch )
       continue
     print "Fast forwarding %s to %s" % ( branch, trackedBranch )
     do( "git checkout %s" % branch )
@@ -275,8 +276,18 @@ def execFForward():
   if currentBranch != wBranch:
     print "Reverting to working branch %s" % wBranch
     do( "git checkout %s" % wBranch )
-      
-    
+
+def execPromote():
+  if do( "git diff-index HEAD" ):
+    print "Your working space is dirty. Commit first all changes!"
+    sys.exit( 1 )
+  refs = getRefs( defaultCurrent = True )
+  for branch in refs:
+    print "Promoting %s" % branch
+    if not do( "git push origin %s:%s" % ( branch, branch ), checkValid = True ):
+      print "Cannot push branch to origin"
+      sys.exit( 1 )
+  print "Sent %s to origin" % ", ".join( refs )
 
 
 #Glue code
@@ -302,6 +313,9 @@ if parseRes.status:
 if parseRes.fforward:
   doneStuff = True
   execFForward()
+if parseRes.promote:
+  doneStuff = True
+  execPromote()
 
 if not doneStuff:
   parser.print_help()
