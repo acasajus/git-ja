@@ -6,8 +6,40 @@ import inspect
 import subprocess
 import logging
 
+
+class ColoredStreamHandler( logging.StreamHandler ):
+
+  colorIndex = ( 'black', 'red', 'green', 'orange', 'blue', 'violet', 'lightblue', 'gray', 'darkgray', 'inv' )
+  colorMap = { logging.DEBUG : 'lightblue', logging.INFO : False, logging.WARNING : 'gray',
+               logging.ERROR : 'red', logging.FATAL : 'orange' }
+
+  @property
+  def isTTY( self ):
+    istty = getattr( self.stream, 'isatty', None )
+    return istty and istty()
+
+  def emit( self, record ):
+    try:
+      message = self.format( record )
+      if self.isTTY:
+        message = self.colorize( record.levelno, message )
+      self.stream.write( message )
+      self.stream.write( getattr( self, 'terminator', '\n' ) )
+      self.flush()
+    except ( KeyboardInterrupt, SystemExit ):
+      raise
+    except:
+      self.handleError( record )
+
+  def colorize( self, lvl, msg ):
+    c = self.colorMap[ lvl ]
+    if not c:
+      return msg
+    iC = max( 0, self.colorIndex.index( c ) )
+    return "\033[;3%dm%s\033[0m" % ( iC, msg )
+
 log = logging.getLogger( __name__ )
-log.addHandler( logging.StreamHandler() )
+log.addHandler( ColoredStreamHandler() )
 log.setLevel( logging.INFO )
 
 class Command( object ):
@@ -151,11 +183,6 @@ if __name__ == "__main__":
 
 
 sys.exit(0)
-
-colorMap = ( 'black', 'red', 'green', 'orange', 'blue', 'violet', 'lightblue', 'gray', 'darkgray', 'inv' )
-def colorize( msg, color ):
-  iC = max( 0, colorMap.index( color.lower() ) )
-  return "\033[;3%dm%s\033[0m" % ( iC, msg )
 
 def debugMsg( msg ):
   if parseRes.debug:
