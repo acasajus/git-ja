@@ -131,6 +131,36 @@ class Promote( Command ):
     return True
 
 
+class ShowTracking( Command ):
+
+  @classmethod
+  def name( cls ):
+    return 'show-tracking'
+
+  @classmethod
+  def description( cls ):
+    return "Show tracking branches"
+
+  def arm( self ):
+    self.parser.add_argument( "-m", "--mark_current", action = 'store_true', default = False, help = 'Mark the current branch' )
+
+  def work( self, opts ):
+    cb = self.gitCurrentBranch()
+    data = [ l.split() for l in  self.run( "git for-each-ref --format='%(refname:short) %(upstream:short)' refs/heads" ).split( "\n" ) ]
+    log.debug( "Showint tracking branches" )
+    ml = max( ( len( l[0] ) for l in data ) )
+    for l in data:
+      if len( l ) < 2:
+        continue
+      if opts.mark_current:
+        ward = '-  '
+        if l[0] == cb:
+          ward = '+ '
+      else:
+        ward = ''
+      log.info( "{}{} : {}".format( ward, l[0].ljust( ml ), l[1] ) )
+
+
 class GitJa( object ):
 
   def __init__( self ):
