@@ -100,6 +100,19 @@ class Command( object ):
   def gitLocalBranches( self ):
     return [ line.split( "/" )[-1] for line in self.run( "git show-ref --heads" ).split( '\n' ) ]
 
+  def gitTracking( self, branch = False ):
+    if branch:
+      ref = "refs/heads/" + branch
+    else:
+      ref = "refs/heads"
+
+    data = {}
+    for line in self.run( "git for-each-ref --format='%(refname:short) %(upstream:short)' " + ref ).split( "\n" ):
+      l = line.split()
+      if len( l ) == 2:
+        data[ l[0] ] = l[1]
+    return data
+
 
 class Promote( Command ):
 
@@ -130,7 +143,6 @@ class Promote( Command ):
           return False
     return True
 
-
 class ShowTracking( Command ):
 
   @classmethod
@@ -145,20 +157,61 @@ class ShowTracking( Command ):
     self.parser.add_argument( "-m", "--mark_current", action = 'store_true', default = False, help = 'Mark the current branch' )
 
   def work( self, opts ):
-    cb = self.gitCurrentBranch()
-    data = [ l.split() for l in  self.run( "git for-each-ref --format='%(refname:short) %(upstream:short)' refs/heads" ).split( "\n" ) ]
-    log.debug( "Showint tracking branches" )
-    ml = max( ( len( l[0] ) for l in data ) )
-    for l in data:
-      if len( l ) < 2:
-        continue
+    data = self.gitTracking()
+    log.debug( "Showing tracking branches" )
+    ml = max( ( len(k) for k in data ) )
+    if opts.mark_current:
+      cb = self.gitCurrentBranch()
+    for k in data:
+      t = data[k]
       if opts.mark_current:
-        ward = '-  '
+        ward = '- '
         if l[0] == cb:
           ward = '+ '
       else:
         ward = ''
-      log.info( "{}{} : {}".format( ward, l[0].ljust( ml ), l[1] ) )
+      log.info( "{}{} : {}".format( ward, t.rjust( ml ), k ) )
+    return True
+
+class Divergence( Command ):
+
+  @classmethod
+  def description( cls ):
+    return "Graph divergence tree between branches"
+
+  def arm( self ):
+    self.parser.add_argument( '-r', '--include_upstream', action = 'store_true', default = False, help = 'Include upstream branches for divergence tree' )
+    self.parser.add_argument( 'refs', nargs = '*', help = 'Branches used to calculate the divergence graph' )
+
+  def work( self, opts ):
+    refs = opts.refs
+    if not refs:
+      refs = self.gitLocalBranches()
+    if opts.include_upstream:
+      track = self.gitTracking()
+      refs.extend( [ track[k] for k in refs if k in track ] )
+    if len( refs ) < 2:
+      log.error( "Not enough references to generate tree" )
+      return False
+    log.info( "Generating divergence between " + " ".join( refs ) )
+    base = self.run( "git merge-base --octopus " + " ".join( refs ) ).strip()
+    if not base:
+      return False
+    name = self.run( "git name-rev {}".format( base ) ).strip().split()[1]
+    if name.find( "remotes/" ) == 0:
+      name = name[ 8: ]
+    log.info( "Graph origin is {}".format( name ) )
+    try:
+      refs.remove( name )
+    except ValueError:
+      pass
+    cmd = "git log --graph --color --pretty=format:%x1b[31m%h%x09%x1b[32m%d%x1b[0m%x20%s {}^! {}".format( base, " ".join( refs ) )
+    log.info( self.run( cmd ) )
+    return True
+
+
+
+
 
 
 class GitJa( object ):
