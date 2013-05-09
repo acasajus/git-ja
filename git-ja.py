@@ -2,24 +2,155 @@
 
 import argparse
 import sys
+import inspect
 import subprocess
-import os
-import re
+import logging
 
-parser = argparse.ArgumentParser( description = "Git-ja utilities for gitjas!" )
-parser.add_argument( '-d', '--debug', action = 'store_true', help = "Enable debug output" )
-parser.add_argument( '-r', '--remotes', action = 'store_true', help = "List all remotes" )
-parser.add_argument( '-u', '--update', action = 'store_true', help = "Update info about all remotes" )
-parser.add_argument( '-t', '--status', action = 'store_true', help = "Show divergence between given refs and their remote tracked and homonym branches" )
-parser.add_argument( '-i', '--divergence', action = 'store_true', help = "Show divergence tree between given refs" )
-parser.add_argument( '-f', '--syncLog', action = 'store_true', help = "Get the commits that differ between local and tracked branches" )
-parser.add_argument( '-P', '--prune', action = 'store_true', help = "Prune remote branches. If no remote branches are given, origin branches that doesn't exist locally will be used" )
-parser.add_argument( '-w', '--fforward', action = 'store_true', help = "Fast forward branches to their remotes refs if possible" )
-parser.add_argument( '-p', '--promote', action = 'store_true', help = "Promote branch to origin" )
-parser.add_argument( '-s', '--shy', action = 'store_true', help = "Do not execute any remote query" )
-parser.add_argument( 'refs', metavar = 'ref', nargs = '*' )
-doneStuff = False
-parseRes = parser.parse_args()
+log = logging.getLogger( __name__ )
+log.addHandler( logging.StreamHandler() )
+log.setLevel( logging.INFO )
+
+class Command( object ):
+
+  def __init__( self, parser ):
+    self.parser = parser
+    self.shy = False
+    self.parser.description = self.description()
+    self.parser.usage = "git-ja {} [opts]".format( self.name() )
+
+  @classmethod
+  def name( cls ):
+    return cls.__name__.lower()
+
+  @classmethod
+  def description( cls ):
+    return "FILL THIS YOU LAZY DOG"
+
+  def arm( self ):
+    pass
+
+  def fire( self ):
+    self.opts = self.parser.parse_args( sys.argv[2:] )
+    self.shy = self.opts.shy
+    if self.opts.debug:
+      log.setLevel( logging.DEBUG )
+    return self.work( self.opts )
+
+  def run( self, cmd, checkValid = False ):
+    log.debug( "Exec %s" % cmd )
+    sp = subprocess.Popen( cmd, shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
+    data = ""
+    stepRead = 8192
+    while True:
+      buf = sp.stdout.read( stepRead )
+      if buf:
+        data += buf
+      if len( buf ) < stepRead:
+        break
+    wait = sp.wait()
+    if wait != 0:
+      err = sp.stderr.read()
+      if not err:
+        err = data
+      if checkValid:
+        return False
+      log.error( "While executing [%s]:\n%s" % ( cmd, err ) )
+      sys.exit( wait )
+    if checkValid:
+      return True
+    sp.stderr.close()
+    sp.stdout.close()
+    return data.strip()
+
+  def gitCurrentBranch( self ):
+    return self.run( "git rev-parse --abbrev-ref HEAD" )
+
+  def gitLocalBranches( self ):
+    return [ line.split( "/" )[-1] for line in self.run( "git show-ref --heads" ).split( '\n' ) ]
+
+
+class Promote( Command ):
+
+  @classmethod
+  def description( cls ):
+    return "Send branch to remote"
+
+  def arm( self ):
+    self.parser.add_argument( "-r", "--remote", action = 'store', default = 'origin', help = 'Promote to this remote' )
+    self.parser.add_argument( "-x", "--remote_branch", action = 'store', default = False, help = 'Remote branch to promote to' )
+    self.parser.add_argument( "-u", "--upstream", action = 'store_true', default = False, help = 'Set upstream for git push/pull' )
+    self.parser.add_argument( 'branches', metavar = 'branches', nargs = argparse.REMAINDER, help = "Branches to promote" )
+
+  def work( self, opts ):
+    if opts.upstream:
+      basecmd = "git push -u"
+    else:
+      basecmd = "git push"
+    branches = opts.branches
+    if not branches:
+      branches = [ self.gitCurrentBranch() ]
+    for branch in branches:
+      remname = opts.remote_branch
+      if not remname:
+        remname = branch
+      log.info( "Promoting {} to {}/{}".format( branch, opts.remote, remname ) )
+      if not self.run( "{} {} {}:{}".format( basecmd, opts.remote, branch, remname ) ):
+          return False
+    return True
+
+
+class GitJa( object ):
+
+  def __init__( self ):
+    self.__cmds = dict( [ ( cls.name(), cls ) for cls in Command.__subclasses__() ] )
+    mx = max( [ len( k ) for k in self.__cmds ] )
+
+    usecmd = "\n  ".join( [ "{}: {}".format( k.rjust( mx ), self.__cmds[k].description() ) for k in self.__cmds ] )
+    usage = "git-ja command [opts]\n\nAvailable commands:\n  {}".format( usecmd )
+
+    self.__parser = argparse.ArgumentParser( description = "Git-ja utilities for gitjas!",
+                                           usage = usage,
+                                           formatter_class = argparse.RawDescriptionHelpFormatter )
+    self.__parser.add_argument( '-d', '--debug', action = 'store_true', default = False, help = "Enable debug output" )
+    self.__parser.add_argument( '-s', '--shy', action = 'store_true', default = False, help = "Do not execute any remote query" )
+
+  def __searchCommand( self ):
+    if len( sys.argv ) < 2:
+      log.error( "Missing command" )
+      return False
+    q = sys.argv[1]
+    if q in self.__cmds:
+      return self.__cmds[q]
+    cmds = [ k for k in self.__cmds ]
+    for iP in range( len( q ) ):
+      c = q[iP]
+      cmds = [ k for k in cmds if len( k ) > iP and k[iP] == c ]
+      if len( cmds ) == 1:
+        return self.__cmds[ cmds[ 0 ] ]
+    if len( cmds ) > 1:
+      log.error( "Ambiguous command. Which one of {} is it?".format( cmds ) )
+      return False
+    log.error( "Unknown command" )
+    return False
+
+  def act( self ):
+    cmdClass = self.__searchCommand()
+    if not cmdClass:
+      self.__parser.print_help()
+      return False
+    cmd = cmdClass( self.__parser )
+    cmd.arm()
+    return cmd.fire()
+
+if __name__ == "__main__":
+  gitja = GitJa()
+  if gitja.act():
+    sys.exit(0)
+  else:
+    sys.exit(1)
+
+
+sys.exit(0)
 
 colorMap = ( 'black', 'red', 'green', 'orange', 'blue', 'violet', 'lightblue', 'gray', 'darkgray', 'inv' )
 def colorize( msg, color ):
