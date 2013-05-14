@@ -46,7 +46,7 @@ class Command( object ):
 
   def __init__( self, parser ):
     self.parser = parser
-    self.shy = False
+    self.maniac = False
     self.parser.description = self.description()
     self.parser.usage = "git-ja {} [opts]".format( self.name() )
 
@@ -63,9 +63,11 @@ class Command( object ):
 
   def fire( self ):
     self.opts = self.parser.parse_args( sys.argv[2:] )
-    self.shy = self.opts.shy
     if self.opts.debug:
       log.setLevel( logging.DEBUG )
+    self.maniac = self.opts.maniac
+    if self.maniac:
+      log.debug( "MANIAC mode on" )
     return self.work( self.opts )
 
   def run( self, cmd, checkValid = False ):
@@ -101,7 +103,8 @@ class Command( object ):
     return set( ( line.split( "/" )[-1] for line in self.run( "git show-ref --heads" ).split( '\n' ) ) )
 
   def gitRemoteBranches( self ):
-    if not self.opts.shy:
+    if self.maniac:
+      log.info( "Getting information from remotes" )
       self.run( "git fetch --all --prune" )
 
     data = self.run( "git show-branch --remotes --list" )
@@ -120,11 +123,15 @@ class Command( object ):
     for line in self.run( "git for-each-ref --format='%(refname:short) %(upstream:short)' " + ref ).split( "\n" ):
       l = line.split()
       if len( l ) == 2:
+        lb = l[0]
         rb = l[1]
         if rb in rembranches:
-          data[ l[0] ] = rb
+          data[ lb ] = rb
+        elif self.maniac:
+          log.info( "Cleaning inexistant {} upstream for branch {}".format( rb, lb ) )
+          self.run( "git branch --unset-upstream {}".format( lb ) )
         else:
-          log.debug( "{} tracks {} that does not exist any more".format( l[0], rb ) )
+          log.debug( "{} tracks {} that does not exist any more".format( lb, rb ) )
     return data
 
 
@@ -176,17 +183,17 @@ class ShowTracking( Command ):
     return "Show tracking branches"
 
   def arm( self ):
-    self.parser.add_argument( "-m", "--mark_current", action = 'store_true', default = False, help = 'Mark the current branch' )
+    self.parser.add_argument( "-c", "--current", action = 'store_true', default = False, help = 'Mark the current branch' )
 
   def work( self, opts ):
     data = self.gitTracking()
     log.debug( "Showing tracking branches" )
     ml = max( ( len(k) for k in data ) )
-    if opts.mark_current:
+    if opts.current:
       cb = self.gitCurrentBranch()
     for k in data:
       t = data[k]
-      if opts.mark_current:
+      if opts.current:
         ward = '- '
         if l[0] == cb:
           ward = '+ '
@@ -244,7 +251,7 @@ class GitJa( object ):
                                            usage = usage,
                                            formatter_class = argparse.RawDescriptionHelpFormatter )
     self.__parser.add_argument( '-d', '--debug', action = 'store_true', default = False, help = "Enable debug output" )
-    self.__parser.add_argument( '-s', '--shy', action = 'store_true', default = False, help = "Do not execute any remote query" )
+    self.__parser.add_argument( '-m', '--maniac', action = 'store_true', default = False, help = "Update any required information" )
 
   def __searchCommand( self ):
     if len( sys.argv ) < 2:
