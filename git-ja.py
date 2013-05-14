@@ -121,7 +121,7 @@ class Promote( Command ):
     return "Send branch to remote"
 
   def arm( self ):
-    self.parser.add_argument( "-r", "--remote", action = 'store', default = 'origin', help = 'Promote to this remote' )
+    self.parser.add_argument( "-r", "--remote", action = 'store', default = False, help = 'Promote to this remote' )
     self.parser.add_argument( "-x", "--remote_branch", action = 'store', default = False, help = 'Remote branch to promote to' )
     self.parser.add_argument( "-u", "--upstream", action = 'store_true', default = False, help = 'Set upstream for git push/pull' )
     self.parser.add_argument( 'branches', metavar = 'branches', nargs = argparse.REMAINDER, help = "Branches to promote" )
@@ -135,12 +135,20 @@ class Promote( Command ):
     if not branches:
       branches = [ self.gitCurrentBranch() ]
     for branch in branches:
-      remname = opts.remote_branch
+      rembranch = opts.remote_branch
+      remname = opts.remote
       if not remname:
-        remname = branch
-      log.info( "Promoting {} to {}/{}".format( branch, opts.remote, remname ) )
-      if not self.run( "{} {} {}:{}".format( basecmd, opts.remote, branch, remname ) ):
+        data = self.gitTracking( branch )
+        data = data.get( branch, 'origin/{}'.format( branch ) ).split( "/" )
+        remname = data[0]
+        if not rembranch:
+          rembranch = data[1]
+      if not rembranch:
+        rembranch = branch
+      log.info( "Promoting {} to {}/{}".format( branch, remname, rembranch ) )
+      if not self.run( "{} {} {}:{}".format( basecmd, remname, branch, rembranch ) ):
           return False
+    log.info( "Done" )
     return True
 
 class ShowTracking( Command ):
@@ -170,7 +178,7 @@ class ShowTracking( Command ):
           ward = '+ '
       else:
         ward = ''
-      log.info( "{}{} : {}".format( ward, t.rjust( ml ), k ) )
+      log.info( "{}{} : {}".format( ward, k, t.rjust( ml ) ) )
     return True
 
 class Divergence( Command ):
