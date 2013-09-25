@@ -143,7 +143,7 @@ class Promote( Command ):
 
   def arm( self ):
     self.parser.add_argument( "-r", "--remote", action = 'store', default = False, help = 'Promote to this remote' )
-    self.parser.add_argument( "-x", "--remote_branch", action = 'store', default = False, help = 'Remote branch to promote to' )
+    self.parser.add_argument( "-x", "--remote-branch", dest = 'remoteBranch', action = 'store', default = False, help = 'Remote branch to promote to' )
     self.parser.add_argument( "-u", "--upstream", action = 'store_true', default = False, help = 'Set upstream for git push/pull' )
     self.parser.add_argument( 'branches', metavar = 'branches', nargs = argparse.REMAINDER, help = "Branches to promote" )
 
@@ -156,7 +156,7 @@ class Promote( Command ):
     if not branches:
       branches = [ self.gitCurrentBranch() ]
     for branch in branches:
-      rembranch = opts.remote_branch
+      rembranch = opts.remoteBranch
       remname = opts.remote
       if not remname:
         data = self.gitTracking( branch )
@@ -209,14 +209,17 @@ class Divergence( Command ):
     return "Graph divergence tree between branches"
 
   def arm( self ):
-    self.parser.add_argument( '-r', '--include_upstream', action = 'store_true', default = False, help = 'Include upstream branches for divergence tree' )
+    self.parser.add_argument( '-r', '--include-upstream', dest = 'includeUpstream', 
+                              action = 'store_true', default = False, help = 'Include upstream branches for divergence tree' )
+    self.parser.add_argument( '-t', '--topo-order', dest = 'topoOrder', 
+                              action = 'store_true', default = False, help = 'Show tree in topological order instead of date ordered' )
     self.parser.add_argument( 'refs', nargs = '*', help = 'Branches used to calculate the divergence graph' )
 
   def work( self, opts ):
     refs = opts.refs
     if not refs:
       refs = self.gitLocalBranches()
-    if opts.include_upstream:
+    if opts.includeUpstream:
       track = self.gitTracking()
       refs.extend( [ track[k] for k in refs if k in track ] )
     if len( refs ) < 2:
@@ -234,7 +237,8 @@ class Divergence( Command ):
       refs.remove( name )
     except ValueError:
       pass
-    cmd = "git log --date-order --graph --color --pretty=format:%x1b[31m%h%x09%x1b[32m%d%x1b[0m%x20%s {}^! {}".format( base, " ".join( refs ) )
+    order = 'topo' if opts.topoOrder else 'date'
+    cmd = "git log --{}-order --graph --color --pretty=format:%x1b[31m%h%x09%x1b[32m%d%x1b[0m%x20%s {}^! {}".format( order, base, " ".join( refs ) )
     log.info( self.run( cmd ) )
     return True
 
