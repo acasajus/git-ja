@@ -1,5 +1,6 @@
-git-ja.py~
-git-ja.kdev4
-.kdev4
+*.py~
+*.kdev4
 .project
 .pydevproject
+build
+.python-version

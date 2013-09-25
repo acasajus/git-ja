@@ -281,10 +281,13 @@ class GitJa( object ):
     cmd.arm()
     return cmd.fire()
 
-if __name__ == "__main__":
+def run():
   gitja = GitJa()
   if gitja.act():
     sys.exit(0)
   else:
     sys.exit(1)
+
+if __name__ == "__main__":
+  run()
 
