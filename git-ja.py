@@ -232,7 +232,7 @@ class Divergence( Command ):
     log.info( "Graph origin is {}".format( name ) )
     try:
       refs.remove( name )
-    except KeyError:
+    except ValueError:
       pass
     cmd = "git log --date-order --graph --color --pretty=format:%x1b[31m%h%x09%x1b[32m%d%x1b[0m%x20%s {}^! {}".format( base, " ".join( refs ) )
     log.info( self.run( cmd ) )
