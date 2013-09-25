@@ -78,7 +78,7 @@ class Command( object ):
     while True:
       buf = sp.stdout.read( stepRead )
       if buf:
-        data += buf
+        data += buf.decode('utf-8')
       if len( buf ) < stepRead:
         break
     wait = sp.wait()
