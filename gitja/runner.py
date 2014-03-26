@@ -242,6 +242,43 @@ class Divergence( Command ):
     log.info( self.run( cmd ) )
     return True
 
+class Vanish( Command ):
+
+  @classmethod
+  def description( cls ):
+    return "Remove branches locally and from upstream"
+
+  def arm( self ):
+    self.parser.add_argument( "-r", "--remote", action = 'store', default = False, help = 'Remove from this remote' )
+    self.parser.add_argument( "-f", "--force", action = 'store_true', default = False, help = 'Force branch deletion' )
+    self.parser.add_argument( 'branches', metavar = 'branches', nargs = argparse.REMAINDER, help = "Branches to promote" )
+
+  def work( self, opts ):
+    switch = '-d'
+    if opts.force:
+      switch = '-D'
+    branches = opts.branches
+    if not branches:
+      log.error( "Which branches do you want to remove?" )
+      sys.exit(1)
+    for branch in branches:
+      rembranch = ""
+      remname = opts.remote
+      if not remname:
+        data = self.gitTracking( branch )
+        data = data.get( branch, 'origin/{}'.format( branch ) ).split( "/" )
+        remname = data[0]
+        rembranch = data[1]
+      if not rembranch:
+        rembranch = branch
+      log.info( "Removing {} and {}/{}".format( branch, remname, rembranch ) )
+      if not self.run( "git branch {} {}".format( switch, branch ) ):
+          return False
+      if not self.run( "git push {} :{}".format( remname, rembranch ) ):
+          return False
+    log.info( "Done" )
+    return True
+
 class GitJa( object ):
 
   def __init__( self ):
